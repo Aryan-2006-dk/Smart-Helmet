@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>RoadSoS</title>
+    <style>
+        :root {
+            --bg-dark: #161616;
+            --card-bg: #222222;
+            --text-main: #f0f0f0;
+            --text-muted: #a0a0a0;
+            --accent-orange: #d95a35;
+            --accent-green: #4ca750;
+            --accent-blue: #3b82f6;
+            --badge-green-bg: #e6f4ea;
+            --badge-green-text: #137333;
+            --badge-orange-bg: #fce8e6;
+            --badge-orange-text: #c5221f;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+        body { background-color: var(--bg-dark); color: var(--text-main); display: flex; justify-content: center; min-height: 100vh; }
+        .app-container { width: 100%; max-width: 400px; padding: 20px; position: relative; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-top: 10px;}
+        .logo { font-size: 24px; font-weight: bold; }
+        .logo span { color: var(--accent-orange); }
+        .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+        .status-active { background: var(--badge-green-bg); color: var(--badge-green-text); }
+        .status-alert { background: var(--badge-orange-bg); color: var(--badge-orange-text); }
+        
+        .tabs { display: flex; border-bottom: 1px solid #333; margin-bottom: 20px; }
+        .tab { flex: 1; text-align: center; padding: 10px; color: var(--text-muted); font-size: 14px; font-weight: 500; }
+        .tab.active { color: var(--accent-orange); border-bottom: 2px solid var(--accent-orange); }
+
+        .card { background-color: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+        .card-title { font-size: 12px; color: var(--text-muted); margin-bottom: 12px; font-weight: 600;}
+        
+        .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        .sensor-label { font-size: 12px; color: var(--text-main); margin-bottom: 4px; }
+        .sensor-value { font-size: 18px; font-weight: 600; }
+        .val-blue { color: var(--accent-blue); }
+        .val-green { color: var(--accent-green); }
+
+        .resource-item { display: flex; align-items: center; margin-bottom: 15px; }
+        .resource-item:last-child { margin-bottom: 0; }
+        .resource-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; margin-right: 12px; background: #fff;}
+        .resource-details h4 { font-size: 14px; margin-bottom: 2px; color: var(--text-main);}
+        .resource-details p { font-size: 12px; color: var(--text-muted); }
+
+        .alert-container { text-align: center; padding: 20px 0; }
+        .alert-pill { background: rgba(255,255,255,0.1); padding: 6px 16px; border-radius: 20px; font-size: 14px; color: var(--accent-orange); display: inline-block; margin-bottom: 15px;}
+        .alert-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 30px; line-height: 1.4;}
+        
+        .timer-wrapper { position: relative; width: 120px; height: 120px; margin: 0 auto 30px auto; }
+        .timer-svg { transform: rotate(-90deg); width: 120px; height: 120px; }
+        .timer-bg { fill: none; stroke: #333; stroke-width: 8; }
+        .timer-progress { fill: none; stroke: var(--accent-orange); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 283; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear; }
+        .timer-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 32px; font-weight: bold; color: var(--accent-orange); }
+
+        .btn { width: 100%; padding: 14px; border-radius: 8px; font-size: 15px; font-weight: 600; border: none; cursor: pointer; margin-bottom: 10px; }
+        .btn-primary { background-color: var(--accent-orange); color: white; }
+        .btn-secondary { background-color: transparent; border: 1px solid #555; color: white; }
+        
+        .dispatch-card { background: var(--card-bg); border-radius: 12px; padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start;}
+        .dispatch-info h4 { font-size: 14px; margin-bottom: 4px; }
+        .dispatch-info p { font-size: 12px; color: var(--text-muted); }
+        .dispatch-badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+        .badge-enroute { background: var(--badge-green-bg); color: var(--badge-green-text); }
+        .badge-prepping { background: #fef0d9; color: #b94a48; }
+
+        .emergency-contact-card { background: #3a2222; border: 1px solid #5c3333; }
+        .emergency-contact-card h4 { color: #ff8a8a; }
+
+        #start-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: var(--bg-dark); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px;}
+        #screen-monitor, #screen-alert, #screen-dispatch { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <div id="start-overlay">
+        <h1 class="logo" style="margin-bottom: 20px;">Road<span>SoS</span></h1>
+        <p style="text-align: center; color: var(--text-muted); margin-bottom: 30px; font-size: 14px;">Place phone in mount. Tap below to begin trip and activate AI sensor fusion.</p>
+        <button class="btn btn-primary" id="startBtn">Start Monitoring Trip</button>
+    </div>
+
+    <div class="header">
+        <div class="logo">Road<span>SoS</span></div>
+        <div class="status-badge status-active" id="mainStatusBadge">
+            <span id="statusIcon">⛨</span> <span id="statusText">active</span>
+        </div>
+    </div>
+
+    <div id="screen-monitor">
+        <div class="tabs">
+            <div class="tab active">monitor</div>
+            <div class="tab">alert</div>
+            <div class="tab">dispatch</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">sensor fusion · live</div>
+            <div class="sensor-grid">
+                <div>
+                    <div class="sensor-label">accelerometer</div>
+                    <div class="sensor-value val-blue" id="ui-accel">0.0 g</div>
+                </div>
+                <div>
+                    <div class="sensor-label">gyroscope</div>
+                    <div class="sensor-value val-blue" id="ui-gyro">0.1°/s</div>
+                </div>
+                <div>
+                    <div class="sensor-label">speed</div>
+                    <div class="sensor-value val-green" id="ui-speed">0 km/h</div>
+                </div>
+                <div>
+                    <div class="sensor-label">gps coords</div>
+                    <div class="sensor-value" id="ui-gps" style="font-size: 13px;">waiting for lock...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">nearest resources · pre-loaded</div>
+            <div class="resource-item">
+                <div class="resource-icon" style="color: var(--accent-blue);">🚑</div>
+                <div class="resource-details">
+                    <h4>City Ambulance Hub</h4>
+                    <p>1.2 km · ETA 4 min</p>
+                </div>
+            </div>
+            <div class="resource-item">
+                <div class="resource-icon" style="color: #c5221f;">🏥</div>
+                <div class="resource-details">
+                    <h4>Trauma Centre · Level 1</h4>
+                    <p>2.8 km · ETA 8 min</p>
+                </div>
+            </div>
+            <div class="resource-item">
+                <div class="resource-icon" style="color: #b36b00;">🛡️</div>
+                <div class="resource-details">
+                    <h4>Sector 5 Police</h4>
+                    <p>0.9 km · ETA 3 min</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="screen-alert">
+        <div class="tabs">
+            <div class="tab">monitor</div>
+            <div class="tab active" style="color: var(--accent-orange); border-color: var(--accent-orange);">alert</div>
+            <div class="tab">dispatch</div>
+        </div>
+
+        <div class="alert-container">
+            <div class="alert-pill">⚠️ crash detected</div>
+            <p class="alert-desc">high deceleration + acoustic signature<br>matched · cancel if false alarm</p>
+            
+            <div class="timer-wrapper">
+                <svg class="timer-svg">
+                    <circle class="timer-bg" cx="60" cy="60" r="45"></circle>
+                    <circle class="timer-progress" id="timerCircle" cx="60" cy="60" r="45"></circle>
+                </svg>
+                <div class="timer-text" id="countdownText">10</div>
+            </div>
+            <p style="color: var(--text-muted); font-size: 12px; margin-bottom: 20px;">SOS sends automatically in <span id="textCount">10</span>s</p>
+
+            <button class="btn btn-primary" id="sendNowBtn">send SOS now</button>
+            <button class="btn btn-secondary" id="cancelBtn">i'm okay · cancel</button>
+        </div>
+    </div>
+
+    <div id="screen-dispatch">
+        <div class="tabs">
+            <div class="tab">monitor</div>
+            <div class="tab">alert</div>
+            <div class="tab active" style="color: var(--accent-orange); border-color: var(--accent-orange);">dispatch</div>
+        </div>
+
+        <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">AI routing dispatched · real-time traffic factored</p>
+
+        <div class="dispatch-card">
+            <div class="dispatch-info">
+                <h4>Ambulance · Unit 04</h4>
+                <p>ETA 4 min · optimised via MG Road bypass</p>
+            </div>
+            <div class="dispatch-badge badge-enroute">en route</div>
+        </div>
+        <div class="dispatch-card">
+            <div class="dispatch-info">
+                <h4>Trauma Centre · Level 1</h4>
+                <p>alerted · vehicle type: sedan · bed reserved</p>
+            </div>
+            <div class="dispatch-badge badge-prepping">prepping</div>
+        </div>
+        <div class="dispatch-card">
+            <div class="dispatch-info">
+                <h4>Sector 5 Police</h4>
+                <p>ETA 3 min · location shared</p>
+            </div>
+            <div class="dispatch-badge badge-enroute">dispatched</div>
+        </div>
+        <div class="dispatch-card emergency-contact-card">
+            <div class="dispatch-info">
+                <h4>emergency contacts notified</h4>
+                <p style="color: #ffb3b3;">WhatsApp · Live Map Sent</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+  let telemetryInterval;
+    let countdownTimer;
+    let currentAccel = [0, 0, 0];
+    let currentGps = [0.0, 0.0]; 
+    let inEmergency = false;
+    let timerValue = 10;
+    const FULL_DASH_ARRAY = 283; 
+
+    // --- BLE UUIDs (Must match the ESP32 code) ---
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const CHARACTERISTIC_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    let bleDevice;
+    let bleCharacteristic;
+
+    const screenMonitor = document.getElementById('screen-monitor');
+    const screenAlert = document.getElementById('screen-alert');
+    const screenDispatch = document.getElementById('screen-dispatch');
+    const startOverlay = document.getElementById('start-overlay');
+    
+    const uiAccel = document.getElementById('ui-accel');
+    const uiSpeed = document.getElementById('ui-speed'); 
+    const uiGps = document.getElementById('ui-gps');     
+    const timerCircle = document.getElementById('timerCircle');
+    const countdownText = document.getElementById('countdownText');
+    const textCount = document.getElementById('textCount');
+    const mainStatusBadge = document.getElementById('mainStatusBadge');
+    const statusIcon = document.getElementById('statusIcon');
+    const statusText = document.getElementById('statusText');
+
+    document.getElementById('startBtn').addEventListener('click', startApp);
+    document.getElementById('cancelBtn').addEventListener('click', cancelEmergency);
+    document.getElementById('sendNowBtn').addEventListener('click', executeDispatch);
+
+    // ==========================================
+    // 1. BLUETOOTH CONNECTION LOGIC
+    // ==========================================
+    async function connectHelmetBLE() {
+        try {
+            console.log("Requesting Bluetooth Device...");
+            // Prompts the user to pair with the ESP32
+            bleDevice = await navigator.bluetooth.requestDevice({
+                filters: [{ name: 'Smart_Helmet_SOS' }],
+                optionalServices: [SERVICE_UUID]
+            });
+
+            console.log("Connecting to GATT Server...");
+            const server = await bleDevice.gatt.connect();
+
+            console.log("Getting Service...");
+            const service = await server.getPrimaryService(SERVICE_UUID);
+
+            console.log("Getting Characteristic...");
+            bleCharacteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
+
+            // Start listening for signals from the helmet
+            await bleCharacteristic.startNotifications();
+            bleCharacteristic.addEventListener('characteristicvaluechanged', handleHelmetAlert);
+            
+            console.log("Bluetooth Connected and Subscribed!");
+            return true;
+        } catch (error) {
+            console.error("Bluetooth Connection Failed", error);
+            alert("Bluetooth connection failed. Make sure the helmet is on and near the phone.");
+            return false;
+        }
+    }
+
+    // ==========================================
+    // 2. HANDLE SIGNALS FROM HELMET
+    // ==========================================
+    function handleHelmetAlert(event) {
+        // Decode the bytes sent by the ESP32 into a string
+        const value = new TextDecoder().decode(event.target.value);
+        console.log("Received from Helmet:", value);
+        
+        // If the ESP32 sends an emergency flag, trigger the app's countdown
+        if (value === "CRASH_DETECTED" || value === "HEAD_SLUMP" || value === "MICROSLEEP") {
+            if (!inEmergency) {
+                // Update the UI pill to show the actual reason for the alert
+                document.querySelector('.alert-pill').innerText = `⚠️ ${value.replace('_', ' ')}`;
+                triggerEmergency();
+            }
+        }
+    }
+
+    // ==========================================
+    // 3. MAIN APP LOGIC
+    // ==========================================
+    async function startApp() {
+        // Force Bluetooth connection before starting the trip
+        const isConnected = await connectHelmetBLE();
+        if (!isConnected) return; // Do not proceed if Bluetooth pairing fails
+
+        startOverlay.style.display = 'none';
+        screenMonitor.style.display = 'block';
+
+        // Start GPS Tracking
+        navigator.geolocation.watchPosition(
+            (pos) => { 
+                currentGps = [pos.coords.latitude, pos.coords.longitude]; 
+                uiGps.innerText = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+                
+                let speedMps = pos.coords.speed;
+                if (speedMps !== null && speedMps > 0.5) { 
+                    let speedKmh = Math.round(speedMps * 3.6);
+                    uiSpeed.innerText = `${speedKmh} km/h`;
+                } else {
+                    uiSpeed.innerText = `0 km/h`; 
+                }
+            },
+            (err) => { console.log('GPS Error', err); },
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+        );
+
+        // Keep standard telemetry running in background
+        telemetryInterval = setInterval(sendTelemetryToAI, 1000);
+    }
+
+    async function sendTelemetryToAI() {
+        if (inEmergency) return;
+
+        const payload = {
+            device_id: "LIVE_MOBILE_01",
+            gps_coordinates: currentGps,
+            accelerometer: currentAccel,
+            gyroscope: [0.1, 0.1, 0.1],
+            microphone_db: 50.0,
+            audio_peak_frequency: 300.0
+        };
+
+        try {
+            const response = await fetch('/api/v1/telemetry/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+
+            // This allows the Python backend to also trigger an alert if needed
+            if (result.action_required === "TRIGGER_COUNTDOWN") {
+                triggerEmergency();
+            }
+        } catch (err) { console.error("Backend offline", err); }
+    }
+
+    function triggerEmergency() {
+        inEmergency = true;
+        clearInterval(telemetryInterval);
+        
+        mainStatusBadge.className = 'status-badge status-alert';
+        statusIcon.innerText = '⚠️';
+        statusText.innerText = 'alert';
+
+        screenMonitor.style.display = 'none';
+        screenAlert.style.display = 'block';
+
+        timerValue = 10;
+        countdownText.innerText = timerValue;
+        textCount.innerText = timerValue;
+        setCircleDashoffset(10);
+        
+        countdownTimer = setInterval(() => {
+            timerValue--;
+            countdownText.innerText = timerValue;
+            textCount.innerText = timerValue;
+            setCircleDashoffset(timerValue);
+
+            if (timerValue <= 0) {
+                clearInterval(countdownTimer);
+                executeDispatch();
+            }
+        }, 1000);
+    }
+
+    function setCircleDashoffset(timeLeft) {
+        const fraction = timeLeft / 10;
+        const offset = FULL_DASH_ARRAY - (fraction * FULL_DASH_ARRAY);
+        timerCircle.style.strokeDashoffset = offset;
+    }
+
+    function cancelEmergency() {
+        clearInterval(countdownTimer);
+        inEmergency = false;
+        
+        mainStatusBadge.className = 'status-badge status-active';
+        statusIcon.innerText = '⛨';
+        statusText.innerText = 'active';
+
+        screenAlert.style.display = 'none';
+        screenMonitor.style.display = 'block';
+        
+        telemetryInterval = setInterval(sendTelemetryToAI, 1000); 
+    }
+
+    async function executeDispatch() {
+        clearInterval(countdownTimer);
+        
+        const payload = { device_id: "LIVE_MOBILE_01", gps_coordinates: currentGps };
+        try {
+            await fetch('/api/v1/emergency/dispatch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+        } catch (err) { console.error("Dispatch API error", err); }
+
+        mainStatusBadge.className = 'status-badge status-alert';
+        statusIcon.innerText = '📡';
+        statusText.innerText = 'SOS active';
+
+        screenAlert.style.display = 'none';
+        screenDispatch.style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
